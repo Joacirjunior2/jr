@@ -5,6 +5,7 @@ import { errorMessage, formatDate, statuses, type Delivery, type DeliveryStatus,
 import { Button, Field, Notice, Select } from '@/components/ui/controls';
 import { DriverForm } from '@/components/DriverForm';
 import { DeliveryForm } from '@/components/DeliveryForm';
+import { DeliverySummary } from '@/components/DeliverySummary';
 
 type Editor = { kind: 'driver'; record: Driver | null } | { kind: 'delivery'; record: Delivery | null } | null;
 const pageSize = 20;
@@ -26,6 +27,7 @@ export function AdminDashboard({ session }: { session: Session }) {
   const [editor, setEditor] = useState<Editor>(null);
   const [savingStatus, setSavingStatus] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [summaryRevision, setSummaryRevision] = useState(0);
   const request = useRef(0);
   const driverRequest = useRef(0);
   const statusLock = useRef(false);
@@ -77,12 +79,14 @@ export function AdminDashboard({ session }: { session: Session }) {
 
   function refresh() {
     setActionError('');
+    setSummaryRevision((value) => value + 1);
     void loadDrivers(); void loadDeliveries();
   }
 
   function saved() {
     const kind = editor?.kind;
     setEditor(null);
+    if (kind === 'delivery') setSummaryRevision((value) => value + 1);
     setNotice(kind === 'driver' ? 'Entregador salvo com sucesso.' : 'Entrega salva com sucesso. A lista respeita os filtros selecionados.');
     void loadDrivers();
     if (page !== 0) setPage(0); else void loadDeliveries();
@@ -96,6 +100,7 @@ export function AdminDashboard({ session }: { session: Session }) {
       const { error: updateError } = await supabase.from('entregas').update({ status: next }).eq('id', delivery.id).select('id').single();
       if (updateError) throw updateError;
       setNotice('Status atualizado com sucesso.');
+      setSummaryRevision((value) => value + 1);
       await loadDeliveries();
     } catch (cause) { setActionError(errorMessage(cause)); }
     finally { statusLock.current = false; setSavingStatus(null); }
@@ -131,6 +136,7 @@ export function AdminDashboard({ session }: { session: Session }) {
           <div><p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">Painel administrativo</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Sua operação, organizada.</h1><p className="mt-3 text-sm text-muted-foreground sm:text-base">Gerencie entregadores e acompanhe cada etapa das entregas.</p></div>
           <Button variant="secondary" onClick={refresh} disabled={loading || driversLoading || locked}>Atualizar dados</Button>
         </div>
+        <DeliverySummary revision={summaryRevision} />
         <nav aria-label="Seções do painel" className="flex w-fit gap-1 rounded-2xl border border-border bg-card p-1.5">
           <Button variant={tab === 'deliveries' ? 'primary' : 'secondary'} aria-pressed={tab === 'deliveries'} disabled={locked} onClick={() => { setTab('deliveries'); setNotice(''); }}>Entregas</Button>
           <Button variant={tab === 'drivers' ? 'primary' : 'secondary'} aria-pressed={tab === 'drivers'} disabled={locked} onClick={() => { setTab('drivers'); setNotice(''); }}>Entregadores</Button>
